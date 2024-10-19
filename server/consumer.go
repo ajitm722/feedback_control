@@ -9,20 +9,44 @@ import (
 	"strings"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-const (
+var (
 	brokerAddr = "localhost:9092" // Kafka broker address
 	topic      = "temperature_data"
-	dt         = 0.04
+	dt         float64 // measurement frequency (to be loaded from config)
 	densityAir = 1000.0
 	Kp1        = 1000.0
 	volO1i     = 30.0
 )
 
-var (
-	TemperatureRoom1 = volO1i
-)
+var TemperatureRoom1 = volO1i
+
+var rootCmd = &cobra.Command{
+	Use:   "consumer",
+	Short: "Kafka Consumer for temperature data",
+	Run:   runConsumer,
+}
+
+func init() {
+	cobra.OnInitialize(initConfig)
+
+	rootCmd.PersistentFlags().Float64Var(&dt, "measurement-frequency", 0.04, "Number of times to measure per second")
+	viper.BindPFlag("measurement-frequency", rootCmd.PersistentFlags().Lookup("measurement-frequency"))
+}
+
+func initConfig() {
+	viper.SetConfigName("config")
+	viper.SetConfigType("yaml")
+	viper.AddConfigPath(".")
+
+	if err := viper.ReadInConfig(); err != nil {
+		fmt.Println("No config file found; using defaults.")
+	}
+	dt = viper.GetFloat64("measurement-frequency") // Load measurement frequency from config
+}
 
 func CreateCSVFile(filename string) (*os.File, *csv.Writer, error) {
 	file, err := os.Create(filename)
@@ -75,7 +99,7 @@ func handleMessage(payload string, writer *csv.Writer) {
 	writer.Flush()
 }
 
-func main() {
+func runConsumer(cmd *cobra.Command, args []string) {
 	// Set up the CSV file
 	file, writer, err := CreateCSVFile("temperature_data.csv")
 	if err != nil {
@@ -104,5 +128,11 @@ func main() {
 		} else {
 			fmt.Printf("Consumer error: %v (%v)\n", err, msg)
 		}
+	}
+}
+
+func main() {
+	if err := rootCmd.Execute(); err != nil {
+		fmt.Println(err)
 	}
 }
