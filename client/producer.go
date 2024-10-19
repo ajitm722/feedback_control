@@ -5,16 +5,14 @@ import (
 	"time"
 
 	"github.com/confluentinc/confluent-kafka-go/kafka"
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var (
-	brokerAddr = "localhost:9092" // Kafka broker address
-	tEnd       = 100.0            // for how long to run
-	dt         float64            // measurement frequency (to be loaded from config)
-	volR1i     = 70.0
-	topic      = "temperature_data"
+	brokerAddr   = "localhost:9092"   // Kafka broker address
+	dt           = 0.04               // Hardcoded measurement frequency (times per second)
+	timeInterval = 100.0              // Hardcoded total time duration for data production in seconds
+	volR1i       = 70.0               // Initial reference temperature
+	topic        = "temperature_data" // Kafka topic
 )
 
 type DataPacket struct {
@@ -24,31 +22,7 @@ type DataPacket struct {
 	PeopleInRoom int
 }
 
-var rootCmd = &cobra.Command{
-	Use:   "producer",
-	Short: "Kafka Producer for temperature data",
-	Run:   runProducer,
-}
-
-func init() {
-	cobra.OnInitialize(initConfig)
-
-	rootCmd.PersistentFlags().Float64Var(&dt, "measurement-frequency", 0.04, "Number of times to measure per second")
-	viper.BindPFlag("measurement-frequency", rootCmd.PersistentFlags().Lookup("measurement-frequency"))
-}
-
-func initConfig() {
-	viper.SetConfigName("config")
-	viper.SetConfigType("yaml")
-	viper.AddConfigPath(".")
-
-	if err := viper.ReadInConfig(); err != nil {
-		fmt.Println("No config file found; using defaults.")
-	}
-	dt = viper.GetFloat64("measurement-frequency") // Load measurement frequency from config
-}
-
-func runProducer(cmd *cobra.Command, args []string) {
+func runProducer() {
 	// Set up Kafka producer configuration
 	p, err := kafka.NewProducer(&kafka.ConfigMap{"bootstrap.servers": brokerAddr})
 	if err != nil {
@@ -56,7 +30,7 @@ func runProducer(cmd *cobra.Command, args []string) {
 	}
 	defer p.Close()
 
-	steps := int(tEnd / dt)
+	steps := int(timeInterval / dt)
 	lastVolR1 := volR1i // Initialize with the initial temperature reference
 
 	for i := 1; i < steps; i++ {
@@ -122,7 +96,5 @@ func runProducer(cmd *cobra.Command, args []string) {
 }
 
 func main() {
-	if err := rootCmd.Execute(); err != nil {
-		fmt.Println(err)
-	}
+	runProducer()
 }

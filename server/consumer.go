@@ -16,13 +16,22 @@ import (
 var (
 	brokerAddr = "localhost:9092" // Kafka broker address
 	topic      = "temperature_data"
-	dt         float64 // measurement frequency (to be loaded from config)
+	dt         = 0.04 // measurement frequency (to be loaded from config)
 	densityAir = 1000.0
-	Kp1        = 1000.0
-	volO1i     = 30.0
-)
 
-var TemperatureRoom1 = volO1i
+	// PID controller parameters
+	Kp float64 = 1000.0 // Proportional gain
+	Ki float64 = 0.1    // Integral gain
+	Kd float64 = 0.01   // Derivative gain
+
+	// Initial conditions
+	volO1i           = 30.0
+	TemperatureRoom1 = volO1i
+
+	// PID state variables
+	integral  float64
+	lastError float64
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "consumer",
@@ -33,8 +42,17 @@ var rootCmd = &cobra.Command{
 func init() {
 	cobra.OnInitialize(initConfig)
 
-	rootCmd.PersistentFlags().Float64Var(&dt, "measurement-frequency", 0.04, "Number of times to measure per second")
-	viper.BindPFlag("measurement-frequency", rootCmd.PersistentFlags().Lookup("measurement-frequency"))
+	dt = 0.04 // Hardcoded measurement frequency
+
+	// Define persistent flags
+	rootCmd.PersistentFlags().Float64Var(&Kp, "Kp", 1000.0, "Proportional gain for PID controller")
+	rootCmd.PersistentFlags().Float64Var(&Ki, "Ki", 0.1, "Integral gain for PID controller")
+	rootCmd.PersistentFlags().Float64Var(&Kd, "Kd", 0.01, "Derivative gain for PID controller")
+
+	// Bind flags to viper
+	viper.BindPFlag("Kp", rootCmd.PersistentFlags().Lookup("Kp"))
+	viper.BindPFlag("Ki", rootCmd.PersistentFlags().Lookup("Ki"))
+	viper.BindPFlag("Kd", rootCmd.PersistentFlags().Lookup("Kd"))
 }
 
 func initConfig() {
@@ -45,9 +63,10 @@ func initConfig() {
 	if err := viper.ReadInConfig(); err != nil {
 		fmt.Println("No config file found; using defaults.")
 	}
-	dt = viper.GetFloat64("measurement-frequency") // Load measurement frequency from config
+	Kp = viper.GetFloat64("Kp") // Load proportional gain from config
+	Ki = viper.GetFloat64("Ki") // Load integral gain from config
+	Kd = viper.GetFloat64("Kd") // Load derivative gain from config
 }
-
 func CreateCSVFile(filename string) (*os.File, *csv.Writer, error) {
 	file, err := os.Create(filename)
 	if err != nil {
@@ -79,9 +98,12 @@ func handleMessage(payload string, writer *csv.Writer) {
 	var annotation string
 
 	if peopleInRoom > 0 {
-		error1 = volR1 - TemperatureRoom1
-		mDot1 = Kp1 * error1
-		TemperatureRoom1 += (mDot1 / densityAir) * dt
+		error1 = volR1 - TemperatureRoom1               // Calculate the error
+		integral += error1 * dt                         // Integral component
+		derivative := (error1 - lastError) / dt         // Derivative component
+		mDot1 = Kp*error1 + Ki*integral + Kd*derivative // PID control input
+		TemperatureRoom1 += (mDot1 / densityAir) * dt   // Update temperature based on control input
+		lastError = error1                              // Save the error for the next derivative calculation
 	} else {
 		annotation = "No people in room"
 	}
