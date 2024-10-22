@@ -20,9 +20,9 @@ var (
 	densityAir = 1000.0
 
 	// PID controller parameters
-	Kp float64 = 1000.0 // Proportional gain
-	Ki float64 = 0.1    // Integral gain
-	Kd float64 = 0.01   // Derivative gain
+	Kp float64 // Proportional gain
+	Ki float64 // Integral gain
+	Kd float64 // Derivative gain
 
 	// Initial conditions
 	volO1i           = 30.0
