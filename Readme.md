@@ -109,3 +109,7 @@ The PID controller adjusts the temperature in response to sensor data (temperatu
 
 - The producer simulates sensor data, and the consumer logs the processed data to a CSV file, which can later be used for analysis or simulation.
 - The simulation script works for up to 100 seconds. If you need longer simulations, extend the duration of the sensor data or rerun the script.
+
+### Example Screenshot
+
+![Coffee POS Workflow](assets/simulation_screenshot.png)
